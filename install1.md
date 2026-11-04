@@ -185,3 +185,31 @@ install_official.sh, AGENTS_local.md and docs/seccomp-shim.md are local-only
 - Note: the stale local apt repo ($PREFIX/var/lib/hope2333-apt + its source
   list) now offers 2.2.5 < installed 2.2.5-2; harmless (apt will not downgrade)
   but it can be removed with its source list whenever desired.
+
+## Cleanup (2026-11-03, late)
+
+Stale local apt scaffold removed on the phone: `$PREFIX/var/lib/hope2333-apt/`,
+`$PREFIX/etc/apt/sources.list.d/hope2333-local.list` and the cached list entry.
+`apt-cache policy opencode` now resolves solely from dpkg status (2.2.5-2), no
+`file:` source, no downgrade candidate.
+
+## Correction (2026-11-04): oscar's "stock -2 passes" was a false positive
+
+The 25 s smoke window was shorter than the failure: on oscar (Android 10 /
+kernel 4.4) 2.2.5-2's background server fails at ~36 s with
+`Error: Failed to start server (cause: EBADF: bad file descriptor, pidfd_open)`
+— the minimal crhandler answers the trapped pidfd_open with -ENOSYS and the
+newer bun base then uses the dead fd (EBADF), instead of 2.2.5-1's
+"Unknown Error, pidfd_open". The TUI sat alive through the 25 s window, so the
+smoke wrongly passed and the device was left stock with a broken TUI.
+
+Fixed methodology: smoke now runs 75 s AND fails on any failure signature
+(pointer error, Failed to start server, pidfd_open/EBADF, ETIMEDOUT,
+cli process failed) regardless of exit code. Escalation ladder extended with
+the EBADF signature → installs the emulating crhandler v2 (fake pidfd is a
+working fd, so spawn succeeds). Phone re-tested with the 75 s probe: clean
+(kernel 4.14 answers pidfd_open with plain ENOSYS, which bun handles).
+
+oscar went off the hotspot overnight (no route) before the fix could be
+applied there; staged and pending: scp updated script + crhandler v2 .so,
+run probe. Phone: stock 2.2.5-2, verified clean, 7.7 GB free.
