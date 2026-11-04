@@ -213,3 +213,36 @@ working fd, so spawn succeeds). Phone re-tested with the 75 s probe: clean
 oscar went off the hotspot overnight (no route) before the fix could be
 applied there; staged and pending: scp updated script + crhandler v2 .so,
 run probe. Phone: stock 2.2.5-2, verified clean, 7.7 GB free.
+
+## Resolution (2026-11-04): second false positive found and fixed
+
+Three probes on oscar with `--print-logs` showed the real failure mode with
+stock 2.2.5-2 + the minimal crhandler: **no error at all**, the TUI just parks
+at `Starting background server...` — log stays at ~80-230 bytes, zero escape
+sequences, process alive (so both the 25 s and the signature-based 75 s smoke
+called it a PASS; "alive" was never "working").
+
+Installing the emulating crhandler v2 made the TUI render immediately
+(smoke log 228 B -> 17 KB with screen control sequences). Root cause unchanged:
+kernel 4.4 + seccomp trap on pidfd_open (434); the minimal shim answers -ENOSYS
+and this bun base then cannot get a usable child fd, so the background server
+never comes up. (Your manual run showed the same thing once the spawn path
+surfaced it: `EBADF: bad file descriptor, pidfd_open`.)
+
+Smoke methodology, final form:
+- 75 s window (failure can take ~36 s)
+- fail on any failure signature, and
+- fail when the log shows no rendered UI (fewer than 4 escape sequences),
+  which catches the silent stall; that stall is routed to the crhandler-v2
+  escalation step.
+
+Verified end-to-end on oscar: restore stock minimal shim (8104 B) -> run script
+-> "trap-gap stall detected: no UI drawn" -> crhandler v2 compiled on-device
+(11672 B) -> "OK: TUI rendered" -> opencode v2.2.5 running. Phone re-tested with
+the stricter smoke: stock 2.2.5-2, no wrapper, no shims (kernel 4.14 answers
+pidfd_open with plain ENOSYS, which bun degrades from).
+
+Standing caveat: the crhandler fix lives in a dpkg-owned path, so every
+`dpkg -i` / `apt upgrade` of opencode reverts oscar to the minimal shim. Re-run
+`opencode-tui-fix.sh` after any upgrade (it is idempotent and self-retiring on
+devices that do not need it).
