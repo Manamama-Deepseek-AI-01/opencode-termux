@@ -13,6 +13,7 @@
 | 怎么发布一批 | `runbooks/release-runbook.md` |
 | 当前有哪些包族、能不能共存 | `packaging/package-families.md`（**单一事实源**） |
 | TUI 起不来怎么判 | `reference/tui-reachability.md` |
+| TUI 在旧内核/旧 Android 上起不来 → 按症状照做 | `reference/android-tui-bringup.md`（含 75 s 渲染判定 + crhandler/noheap 两族 + 三机验证矩阵） |
 | 上游 issue / 同步节奏 | `reference/upstream-issues.md` |
 
 ## 目录职责

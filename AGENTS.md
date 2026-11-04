@@ -30,6 +30,7 @@ opencode-termux/
 | Compressed packaging | `tools/compressed-one.sh`, `scripts/package/package_deb_compressed.sh`, `package_pacman_compressed.sh` | UPX variants; contract in `docs/packaging/compressed-line.md` |
 | Wrapper appendix | `tools/produce-local.sh`, `scripts/package/package_deb.sh`, `package_pacman.sh` | glibc loader line — not the mainline |
 | Version probe (device) | `tools/probe-version.sh`, `docs/reference/version-probe.md` | install → serve → TUI → keystroke → 15 s, per package; verdict rules in `scripts/lib/probe-lib.sh` |
+| TUI won't start on old Android/kernel | `docs/reference/android-tui-bringup.md` | symptom table → one-command installer; verdict = rendered output (≥4 ESC) over 75 s, **not** "process alive" |
 | Upstream drift probe | `scripts/ci/probe-latest-opencode.sh`, `.github/workflows/probe-upstream.yml` | must query `/tags` — upstream v2 has no GitHub Releases |
 | Release ops | `tools/fleet-push.py`, `scripts/push-stage.sh`, `docs/runbooks/release-runbook.md` | batch tags `PushYYMMDD`; never rebind or reuse an existing tag |
 | System-skill hooks | `scripts/hooks/run-system-skills.sh`, `packing/manifests/system-skills/*.json` | strict/network default to safe mode |
