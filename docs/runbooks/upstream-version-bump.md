@@ -13,12 +13,19 @@
 
 ## 0. TL;DR — pick a path
 
-| Path | Time | Needs | Result |
-|---|---|---|---|
-| **A. Wrapper (fast, no compiler)** | ~2 min | `npm`, `python3`, network | `$PREFIX/bin/opencode` = new version, runs today |
-| **B. Native bionic (slow)** | hours | zig **0.16.0**, OpenTUI tree, ~2 GB RAM headroom | `opencode_<ver>_aarch64.deb`, dpkg-clean |
+| Path | Line | Time | Needs | Result |
+|---|---|---|---|---|
+| **A. Wrapper** | appendix — **carries a glibc payload** | ~2 min | `npm`, `python3`, network | `$PREFIX/bin/opencode` = new version, runs today |
+| **B. Native bionic** | **mainline — zero glibc, the project's premise** | hours | zig **0.16.0**, OpenTUI tree, ~2 GB RAM headroom | `opencode_<ver>_aarch64.deb`, dpkg-clean |
 
-**2.3.0 shipped via path A.** Path B is still un-built for 2.3.0 (§4).
+> [!IMPORTANT]
+> **Path A is a stopgap, not the goal.** The wrapper embeds `ld-linux-aarch64.so.1`, `libc.so.6`,
+> `libm.so.6` and `GLIBC_2.17` symbols (measured 2026-11-13: 2/8/4/7 occurrences) and execs that
+> payload at runtime. Its load-time `NEEDED` is bionic, which makes it *look* glibc-free in
+> `readelf -d` — do not trust that check alone. It is also ~234 MB against the native line's ~66 MB.
+> Use it only to get onto a version, then replace it with path B.
+
+**2.3.0 shipped via path A** (temporary, see §4). Path B is still un-built for 2.3.0.
 
 First, three facts that stop wasted work:
 
@@ -40,11 +47,12 @@ First, three facts that stop wasted work:
 
 ---
 
-## 1. Path A — wrapper (what actually worked)
+## 1. Path A — wrapper appendix (stopgap: has a glibc payload)
 
 Takes upstream's **prebuilt glibc binary** and wraps it so bionic can exec it
-(`bun-termux-loader`). No compiler, no zig, no renderer rebuild — the glibc
-`libopentui.so` travels inside the 234 MB wrapper.
+(`bun-termux-loader`): the glibc `ld-linux-aarch64.so.1` + `libc.so.6` + `libm.so.6` travel
+*inside* the 234 MB wrapper and are unpacked at runtime. **This is the appendix line, not the
+project premise** — see the warning in §0.
 
 ```bash
 cd ~/Downloads/GitHub/opencode-termux
@@ -201,12 +209,20 @@ it is unmeasured.**
 
 ## 4. Where 2.3.0 stands
 
-| Line | Version | State |
-|---|---|---|
-| installed `$PREFIX/bin/opencode` | **2.3.0** (wrapper) | ✅ TUI verified 2026-11-13, `up-to-date` self-check |
-| dpkg package `opencode` | 2.2.5-2 (native, file modified) | rollback binary at `~/opencode-2.2.5-2-native-backup.bin` |
-| native bionic build 2.3.0 | not built | needs §2.1 pins + §2.2 renderer (zig 0.16.0 + OpenTUI tree) |
-| published package 2.3.0 | does not exist | newest batch `Push261105` tops out at 2.0.31 / 1.19.5 |
+| Line | Version | glibc? | State |
+|---|---|---|---|
+| installed `$PREFIX/bin/opencode` | **2.3.0** | **YES — wrapper appendix** (`ld-linux`, `libc.so.6`, `GLIBC_2.17` embedded) | ✅ TUI verified 2026-11-13, `up-to-date` self-check. **Temporary: replace with path B** |
+| dpkg package `opencode` | 2.2.5-2 (native mainline, file modified) | no | rollback binary at `~/opencode-2.2.5-2-native-backup.bin` |
+| native bionic build 2.3.0 | not built | no | needs §2.1 pins + §2.2 renderer (zig 0.16.0 + OpenTUI tree) |
+| published package 2.3.0 | does not exist | — | newest batch `Push261105` tops out at 2.0.31 / 1.19.5 |
+
+Verify which line you are on — **not** with `readelf -d` (bionic `NEEDED` on both), but by payload:
+
+```bash
+for m in ld-linux-aarch64.so.1 libc.so.6 GLIBC_2.17; do printf '%-24s %s\n' "$m" "$(strings -a $PREFIX/bin/opencode | grep -cx "$m")"; done
+# native mainline → all zero (or incidental single hits from bundled JS/docs)
+# wrapper appendix → 2 / 8 / 7
+```
 
 ---
 
