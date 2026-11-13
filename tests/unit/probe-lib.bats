@@ -63,6 +63,7 @@ GOOD='install=ok
 version=opencode v2.1.0
 expected=opencode v2.1.0
 serve=200
+pty=ok
 tui_bytes=1342
 typed_diff=2
 echoed=1
@@ -77,6 +78,26 @@ verdict() { run bash -c 'source "$1"; printf "%s\n" "$2" | probe_verdict' _ "$LI
 	[ "$output" = "PASS" ]
 }
 
+@test "probe_pkg_path prefers the highest package revision" {
+	d="$(mktemp -d "${TMPDIR:-/tmp}/probe-pkg.XXXXXX")"
+	: >"$d/opencode_2.2.5_aarch64.deb"
+	: >"$d/opencode_2.2.5-2_aarch64.deb"
+	: >"$d/opencode_2.2.5-10_aarch64.deb"
+	run bash -c 'source "$1"; probe_pkg_path "$2" v2 2.2.5' _ "$LIB" "$d"
+	[ "$status" -eq 0 ]
+	[[ "$output" == *"opencode_2.2.5-10_aarch64.deb" ]]
+	rm -rf "$d"
+}
+
+@test "probe_pkg_path falls back to the plain (rev 1) package" {
+	d="$(mktemp -d "${TMPDIR:-/tmp}/probe-pkg.XXXXXX")"
+	: >"$d/opencode_2.2.5_aarch64.deb"
+	run bash -c 'source "$1"; probe_pkg_path "$2" v2 2.2.5' _ "$LIB" "$d"
+	[ "$status" -eq 0 ]
+	[[ "$output" == *"opencode_2.2.5_aarch64.deb" ]]
+	rm -rf "$d"
+}
+
 @test "probe_verdict rejects a failed install" {
 	bad="${GOOD/install=ok/install=fail}"
 	run bash -c 'source "$1"; printf "%s\n" "$2" | probe_verdict' _ "$LIB" "$bad"
@@ -87,6 +108,23 @@ verdict() { run bash -c 'source "$1"; printf "%s\n" "$2" | probe_verdict' _ "$LI
 	bad="${GOOD/version=opencode v2.1.0/version=opencode v2.0.31}"
 	run bash -c 'source "$1"; printf "%s\n" "$2" | probe_verdict' _ "$LIB" "$bad"
 	[[ "$output" == *"v2.0.31"* ]]
+}
+
+@test "probe_verdict rejects a pty that cannot be created" {
+	bad="$(printf '%s\n' "$GOOD" | sed 's/^pty=ok$/pty=fail:ERR_DLOPEN_FAILED/')"
+	run bash -c 'source "$1"; printf "%s\n" "$2" | probe_verdict' _ "$LIB" "$bad"
+	[ "$status" -eq 0 ]
+	[[ "$output" == FAIL:* ]]
+	[[ "$output" == *"pty"* ]]
+	[[ "$output" == *"ERR_DLOPEN_FAILED"* ]]
+}
+
+@test "probe_verdict rejects a probe without a pty result (fail loud, not silent pass)" {
+	bad="$(printf '%s\n' "$GOOD" | grep -v '^pty=')"
+	run bash -c 'source "$1"; printf "%s\n" "$2" | probe_verdict' _ "$LIB" "$bad"
+	[ "$status" -eq 0 ]
+	[[ "$output" == FAIL:* ]]
+	[[ "$output" == *"pty"* ]]
 }
 
 @test "probe_verdict rejects a non-200 serve" {

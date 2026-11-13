@@ -51,7 +51,14 @@ esac
 
 DEB_ROOT="${DEB_ROOT:-$ROOT_DIR/packing/dpkg-native/work}"
 OUT_DIR="${OUT_DIR:-$ROOT_DIR/packing/dpkg-native}"
-OUT_FILE="$OUT_DIR/${PKG_NAME}_${VERSION}_${ARCH_DEB}.deb"
+# Package revision: PKGREL/DEB_REV > 1 means a repack of the same upstream
+# version (build/packaging fix, no upstream change). It must show up in BOTH the
+# control Version and the filename, otherwise a repack silently overwrites the
+# already-published asset of the same name with different bytes.
+REV="${DEB_REV:-${PKGREL:-}}"
+REV_SUFFIX=""
+[[ -n "$REV" && "$REV" != "1" ]] && REV_SUFFIX="-$REV"
+OUT_FILE="$OUT_DIR/${PKG_NAME}_${VERSION}${REV_SUFFIX}_${ARCH_DEB}.deb"
 
 rm -rf "$DEB_ROOT"
 mkdir -p "$DEB_ROOT/DEBIAN" "$DEB_ROOT$PREFIX/bin" "$OUT_DIR"
@@ -65,6 +72,17 @@ if [[ "$VERSION" == 1.* ]]; then
 	# $ORIGIN/../lib/opencode resolved via the launcher's LD_LIBRARY_PATH) +
 	# the XDG-isolating launcher at bin/opencode1. v2 stays bin-direct.
 	install -D -m755 "$NATIVE_BIN" "$DEB_ROOT$PREFIX/lib/opencode1/runtime/opencode"
+	# v1 TUI reply-batch guard: the embedded JS parses terminal replies, and
+	# Termux answers the startup capability probe in one burst — a blob with two
+	# or more ESC matches none of the anchored guards and becomes a "key" whose
+	# sequence is rendered (^[]10;rgb:..., ^[[?1016;0$y, mouse as 0;108;22M).
+	# The source-level fix lives in tools/a2/patch-v1-replies.py; for the
+	# already-built runtime we apply the equivalent in-place edit (same length,
+	# bunfs manifest safe) and fail the package if the anchor drifted.
+	if ! python3 "$ROOT_DIR/tools/a2/patch-v1-binary.py" "$DEB_ROOT$PREFIX/lib/opencode1/runtime/opencode"; then
+		echo "Error: v1 runtime reply-batch patch failed (anchor drift?) — refusing to package an input-dead TUI" >&2
+		exit 1
+	fi
 	install -D -m755 "$ROOT_DIR/scripts/opencode1-launcher.sh" "$DEB_ROOT$PREFIX/bin/opencode1"
 	# oldkernel-compat follow-up: ship the `.grafted` B 档 marker next to the
 	# runtime when the T6 graft build produced one beside the native binary.
@@ -127,7 +145,7 @@ fi
 
 cat >"$DEB_ROOT/DEBIAN/control" <<EOF
 Package: $PKG_NAME
-Version: $VERSION${DEB_REV:-}
+Version: $VERSION${REV:+-$REV}
 Architecture: $ARCH_DEB
 Maintainer: $MAINTAINER
 Section: utils
