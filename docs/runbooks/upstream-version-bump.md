@@ -156,9 +156,11 @@ For reference, **2.3.0** moved both coupled deps:
 ### 2.2 Build a bionic `libopentui.so` for the new opentui version
 
 ```bash
-# needs: zig 0.16.0 aarch64 (NOT the Termux 0.17.x), the OpenTUI native tree, ~2 GB free RAM
+# needs: zig >= 0.17.0 (build.zig.zon .minimum_zig_version — the script's 0.16.0 default
+#        is a stale w7b-era pin, override ZIG_BIN with the Termux zig), the OpenTUI native
+#        tree (clone --branch v<opentui-ver>), ~2 GB free RAM
 OPENTUI_ZIG_DIR=~/develop/OpenTUI-w7b-native/packages/native \
-ZIG_BIN=/path/to/zig-0.16.0/zig \
+ZIG_BIN="$(command -v zig)" \
   bash tools/transplant/build-libopentui.sh
 # → artifacts/transplant/opentui-bionic-<ver>/libopentui.so   (gitignored — commit nothing, but BACK IT UP)
 ```
@@ -232,7 +234,7 @@ for m in ld-linux-aarch64.so.1 libc.so.6 GLIBC_2.17; do printf '%-24s %s\n' "$m"
 |---|---|---|---|
 | T1 | `opencode upgrade --method bun/npm/...` | prints `Upgrade complete`, nothing installed | never use it; see §0.1 |
 | T2 | `make family-v2-wrapper` needs `~/.omo/evidence/opencode-v2-port/rc2-rebuild/old-wrapper-deb-control.txt` | `FATAL: control template missing` | the template is **device state**, not repo state — recreate it or install the wrapped binary directly (§1) |
-| T3 | `build-libopentui.sh` wants zig **0.16.0** + `~/develop/OpenTUI-w7b-native` | zig 0.17.x from `pkg`, tree absent | furnish both, or stay on path A |
+| T3 | `build-libopentui.sh` defaults to zig **0.16.0** + `~/develop/OpenTUI-w7b-native` | confusing zig API/compile errors, or "zig 0.16 binary missing" | the 0.16.0 default is a **stale pin**: OpenTUI v0.8.4's `build.zig.zon` declares `.minimum_zig_version = "0.17.0"`. Clone `--branch v<ver>` and pass `ZIG_BIN=$(command -v zig)` (Termux 0.17.x is correct) |
 | T4 | `artifacts/` is gitignored | bionic `libopentui.so` and built runtimes vanish on cleanup, then get rebuilt from scratch | back the .so up somewhere durable before cleaning |
 | T5 | `opencode-tui-fix.sh` fixes live in dpkg-owned paths | fixes silently reverted by every `dpkg -i` | re-run it after every package operation (verdict = render gate) |
 | T6 | wrapper replaces a dpkg-owned file | `dpkg -V opencode` shows modified file | expected; rollback = `cp` the saved native binary back |
