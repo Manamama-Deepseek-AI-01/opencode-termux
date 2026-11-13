@@ -97,7 +97,11 @@ UP_V1="$(printf '%s\n' "$tags" | grep -E '^v1\.[0-9]+\.[0-9]+$' | sort -V | tail
 [[ -n "$UP_V2" ]] || die "no v2 tag found upstream"
 [[ -n "$UP_V1" ]] || UP_V1="(none)"
 
-UP_PTY="$(fetch_pkg packages/cli/package.json "$UP_V2" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("dependencies",{}).get("@opencode-ai/pty",""))' 2>/dev/null)"
+# Upstream renamed the pty package in 2.2.3 (@opencode-ai/pty -> @opencode/pty).
+# Reading only the old name made this probe die at "cannot read upstream pins"
+# from 2.2.3 on, which silently froze the pin table at 2.2.5 (2.3.0 regression
+# found 2026-11-13). Accept either name, prefer the current one.
+UP_PTY="$(fetch_pkg packages/cli/package.json "$UP_V2" | python3 -c 'import json,sys; d=json.load(sys.stdin).get("dependencies",{}); print(d.get("@opencode/pty") or d.get("@opencode-ai/pty",""))' 2>/dev/null)"
 UP_OPENTUI="$(fetch_pkg package.json "$UP_V2" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("workspaces",{}).get("catalog",{}).get("@opentui/core",""))' 2>/dev/null)"
 [[ -n "$UP_PTY" && -n "$UP_OPENTUI" ]] || die "cannot read upstream pins at $UP_V2"
 
